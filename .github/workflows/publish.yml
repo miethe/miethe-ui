@@ -1,0 +1,63 @@
+# Manual trigger only — run via Actions tab → "Publish @miethe/ui to npm" → Run workflow.
+# Also triggers on version tags (v*) pushed to main for automated releases.
+# Requires NPM_TOKEN secret with publish rights to the @miethe scope on registry.npmjs.org.
+
+name: Publish @miethe/ui to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (pack only, no publish)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Build and publish @miethe/ui
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # required for npm provenance (--provenance flag)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org/'
+          scope: '@miethe'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Clean and build
+        run: pnpm clean && pnpm build
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Pack (dry run — inspect what would be published)
+        run: npm pack --dry-run
+
+      - name: Publish to npmjs.org
+        if: ${{ github.event_name == 'push' || inputs.dry_run == 'false' }}
+        # Uses npm (not pnpm) to guarantee publishConfig.registry is respected.
+        # pnpm publish can silently ignore publishConfig.registry for scoped packages.
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

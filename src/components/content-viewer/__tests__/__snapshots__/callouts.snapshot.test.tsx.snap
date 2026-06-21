@@ -1,0 +1,127 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Callout base component — PU5-02 renders stable snapshot for type="note" 1`] = `
+<aside
+  aria-label="Note callout"
+  class="my-4 rounded-r-md border-l-4 px-4 py-3 border-l-blue-400 bg-blue-50 dark:bg-blue-950/30 [border-left-color:var(--callout-border-color,inherit)] [background-color:var(--callout-bg-color,inherit)]"
+  data-callout-type="note"
+  role="note"
+>
+  <p
+    aria-hidden="true"
+    class="mb-1 text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300 [color:var(--callout-label-color,inherit)]"
+  >
+    Note
+  </p>
+  <div
+    class="text-sm text-foreground [&>*:last-child]:mb-0 [&>p]:mb-2"
+  >
+    Base note
+  </div>
+</aside>
+`;
+
+exports[`Callout base component — PU5-02 renders stable snapshot for type="warning" 1`] = `
+<aside
+  aria-label="Warning callout"
+  class="my-4 rounded-r-md border-l-4 px-4 py-3 border-l-amber-400 bg-amber-50 dark:bg-amber-950/30 [border-left-color:var(--callout-border-color,inherit)] [background-color:var(--callout-bg-color,inherit)]"
+  data-callout-type="warning"
+  role="alert"
+>
+  <p
+    aria-hidden="true"
+    class="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 [color:var(--callout-label-color,inherit)]"
+  >
+    Warning
+  </p>
+  <div
+    class="text-sm text-foreground [&>*:last-child]:mb-0 [&>p]:mb-2"
+  >
+    Base warning
+  </div>
+</aside>
+`;
+
+exports[`InfoCallout — snapshot and structure renders stable snapshot 1`] = `
+<aside
+  aria-label="Info callout"
+  class="my-4 rounded-r-md border-l-4 px-4 py-3 border-l-teal-400 bg-teal-50 dark:bg-teal-950/30 [border-left-color:var(--callout-border-color,inherit)] [background-color:var(--callout-bg-color,inherit)]"
+  data-callout-type="info"
+  role="note"
+>
+  <p
+    aria-hidden="true"
+    class="mb-1 text-xs font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-300 [color:var(--callout-label-color,inherit)]"
+  >
+    Info
+  </p>
+  <div
+    class="text-sm text-foreground [&>*:last-child]:mb-0 [&>p]:mb-2"
+  >
+    Info body text
+  </div>
+</aside>
+`;
+
+exports[`NoteCallout — snapshot and structure renders stable snapshot 1`] = `
+<aside
+  aria-label="Note callout"
+  class="my-4 rounded-r-md border-l-4 px-4 py-3 border-l-blue-400 bg-blue-50 dark:bg-blue-950/30 [border-left-color:var(--callout-border-color,inherit)] [background-color:var(--callout-bg-color,inherit)]"
+  data-callout-type="note"
+  role="note"
+>
+  <p
+    aria-hidden="true"
+    class="mb-1 text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300 [color:var(--callout-label-color,inherit)]"
+  >
+    Note
+  </p>
+  <div
+    class="text-sm text-foreground [&>*:last-child]:mb-0 [&>p]:mb-2"
+  >
+    Note body text
+  </div>
+</aside>
+`;
+
+exports[`ReferenceCallout — snapshot and structure renders stable snapshot 1`] = `
+<aside
+  aria-label="Reference callout"
+  class="my-4 rounded-r-md border-l-4 px-4 py-3 border-l-purple-400 bg-purple-50 dark:bg-purple-950/30 [border-left-color:var(--callout-border-color,inherit)] [background-color:var(--callout-bg-color,inherit)]"
+  data-callout-type="reference"
+  role="complementary"
+>
+  <p
+    aria-hidden="true"
+    class="mb-1 text-xs font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300 [color:var(--callout-label-color,inherit)]"
+  >
+    Reference
+  </p>
+  <div
+    class="text-sm text-foreground [&>*:last-child]:mb-0 [&>p]:mb-2"
+  >
+    Reference body text
+  </div>
+</aside>
+`;
+
+exports[`WarningCallout — snapshot and structure renders stable snapshot 1`] = `
+<aside
+  aria-label="Warning callout"
+  class="my-4 rounded-r-md border-l-4 px-4 py-3 border-l-amber-400 bg-amber-50 dark:bg-amber-950/30 [border-left-color:var(--callout-border-color,inherit)] [background-color:var(--callout-bg-color,inherit)]"
+  data-callout-type="warning"
+  role="alert"
+>
+  <p
+    aria-hidden="true"
+    class="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 [color:var(--callout-label-color,inherit)]"
+  >
+    Warning
+  </p>
+  <div
+    class="text-sm text-foreground [&>*:last-child]:mb-0 [&>p]:mb-2"
+  >
+    Warning body text
+  </div>
+</aside>
+`;
