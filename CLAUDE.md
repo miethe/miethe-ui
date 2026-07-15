@@ -73,3 +73,14 @@ Postures available to delegate to (from the launchpad inventory): **architects**
 - Worktree preflight: assert resolved tool paths (`which pytest && pytest --version`).
 - Incremental writes = checkpointing. Central commit discipline at wave boundaries.
 - An adversarial read-only review pass after "all green" is worth one more delegate.
+
+## AOS operating doctrine (look-first / save-after)
+
+The launchpad's shared, token-tight doctrine index —
+[`../agentic_meta_dev/.claude/rules/aos-operating-rules.md`](../agentic_meta_dev/.claude/rules/aos-operating-rules.md)
+(sibling-repo relative path) — splits each AOS subsystem's **look-first** instruction from its
+**save-after** gate (or "advisory only"). Consult it before reaching for a subsystem.
+**Fallback:** if this repo is relocated or cloned standalone (the launchpad is not a sibling
+directory), re-vendor the file locally at `.claude/rules/aos-operating-rules.md`.
+
+> Installed via the `aos-native-by-default` initiative (IntentTree node `node_01KXKEH41JCFQPRVK49YTN948E`).
