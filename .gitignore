@@ -1,0 +1,7 @@
+dist/
+node_modules/
+coverage/
+.coverage*
+.operator/
+*.tsbuildinfo
+.DS_Store

@@ -1,0 +1,908 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, X, Loader2 } from 'lucide-react';
+import { FileDiff } from './diff';
+import { Badge } from '../primitives/Badge';
+import { Button } from '../components/ui/button';
+import { Skeleton } from '../components/ui/skeleton';
+import { cn } from '../primitives/utils';
+import { markStart, markEnd } from '../utils/perf-marks';
+
+/**
+ * Resolution type for sync conflict resolution
+ */
+export type ResolutionType = 'keep_local' | 'keep_remote' | 'merge';
+
+/**
+ * Tier context for enterprise tier comparison diffs.
+ *
+ * When provided, the diff panel headers display tier badges (e.g. "Tier 1 · Team")
+ * instead of the plain leftLabel/rightLabel text. The ownerType string is used to
+ * derive a human-readable tier name alongside the numeric tier level.
+ */
+export interface TierContext {
+  /** Owner type for the left (before) panel — e.g. "user", "team", "enterprise" */
+  leftOwnerType: string;
+  /** Owner type for the right (after) panel */
+  rightOwnerType: string;
+  /** Numeric tier level for the left panel (0 = Developer, 1 = Team, 2 = Enterprise, …) */
+  leftTier: number;
+  /** Numeric tier level for the right panel */
+  rightTier: number;
+}
+
+/**
+ * Maximum number of files to render in the sidebar by default.
+ * When the diff contains more files than this, only the first N are shown
+ * and a "Show all N files" banner appears at the bottom of the sidebar.
+ */
+const LARGE_DIFF_FILE_THRESHOLD = 50;
+
+/**
+ * Maximum number of lines in a unified diff before the file is considered
+ * "large" and collapsed by default in the diff panel. The user must click
+ * "Load diff" to expand and parse the content.
+ */
+const LARGE_DIFF_LINE_THRESHOLD = 1000;
+
+/**
+ * Maximum size in bytes for a unified diff string before it is treated as
+ * "large" and collapsed by default (whichever threshold is hit first).
+ */
+const LARGE_DIFF_BYTES_THRESHOLD = 50 * 1024; // 50 KB
+
+/**
+ * Returns true when a unified diff string exceeds either the line or byte threshold.
+ */
+function isLargeFileDiff(unifiedDiff: string): boolean {
+  if (unifiedDiff.length > LARGE_DIFF_BYTES_THRESHOLD) return true;
+  let lineCount = 0;
+  for (let i = 0; i < unifiedDiff.length; i++) {
+    if (unifiedDiff[i] === '\n') {
+      lineCount++;
+      if (lineCount >= LARGE_DIFF_LINE_THRESHOLD) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Props for DiffViewer component
+ *
+ * Configuration for displaying unified diffs with side-by-side view.
+ */
+export interface DiffViewerProps {
+  /** Array of file diffs to display */
+  files: FileDiff[];
+  /** Label for left (before) panel */
+  leftLabel?: string;
+  /** Label for right (after) panel */
+  rightLabel?: string;
+  /** Callback when user closes the diff viewer */
+  onClose?: () => void;
+  /** Show resolution action buttons (for sync conflict resolution) */
+  showResolutionActions?: boolean;
+  /** Callback when user selects a resolution */
+  onResolve?: (resolution: ResolutionType) => void;
+  /** Custom label for local version button (default: "Local (Project)") */
+  localLabel?: string;
+  /** Custom label for remote version button (default: "Remote (Collection)") */
+  remoteLabel?: string;
+  /** Show preview mode UI before applying resolution */
+  previewMode?: boolean;
+  /** Show loading state during resolution */
+  isResolving?: boolean;
+  /** Show skeleton loading state while data is being fetched */
+  isLoading?: boolean;
+  /**
+   * Optional tier context for enterprise tier comparison diffs.
+   *
+   * When provided, the diff panel headers render tier badges instead of the
+   * default plain-text leftLabel/rightLabel. Existing label props still apply
+   * to other parts of the UI (e.g. "file added in {rightLabel}" messages);
+   * only the side-by-side panel column headers change.
+   */
+  tierContext?: TierContext;
+}
+
+interface DiffLineProps {
+  content: string;
+  type: 'addition' | 'deletion' | 'context' | 'header';
+  lineNumber?: number;
+  side?: 'left' | 'right';
+}
+
+interface ParsedDiffLine {
+  leftLineNumber?: number;
+  rightLineNumber?: number;
+  type: 'addition' | 'deletion' | 'context' | 'header';
+  content: string;
+}
+
+function DiffLine({ content, type, lineNumber }: DiffLineProps) {
+  const lineClasses = cn(
+    'flex font-mono text-sm border-b border-border/50',
+    type === 'addition' && 'bg-green-500/10 text-green-700 dark:text-green-400',
+    type === 'deletion' && 'bg-red-500/10 text-red-700 dark:text-red-400',
+    type === 'context' && 'text-foreground',
+    type === 'header' && 'bg-muted/50 text-muted-foreground font-semibold'
+  );
+
+  return (
+    <div className={lineClasses}>
+      <span className="w-12 flex-shrink-0 select-none border-r border-border/50 pr-2 text-right text-gray-400">
+        {lineNumber !== undefined ? lineNumber : ''}
+      </span>
+      <span className="flex-1 whitespace-pre px-2">{content}</span>
+    </div>
+  );
+}
+
+function SpacerLine() {
+  return (
+    <div className="flex bg-muted/40 font-mono text-sm">
+      <span className="w-12 flex-shrink-0 select-none border-r border-border/50 pr-2 text-right text-gray-400">
+        &nbsp;
+      </span>
+      <span className="flex-1 whitespace-pre px-2">&nbsp;</span>
+    </div>
+  );
+}
+
+/** Predetermined widths for skeleton lines to avoid hydration mismatches */
+const LINE_WIDTHS = [72, 55, 88, 43, 65, 80, 50, 95, 60, 75, 48, 83];
+
+/**
+ * DiffViewerSkeleton - Loading skeleton matching the DiffViewer layout
+ *
+ * Mimics the side-by-side diff viewer structure:
+ * - Summary header bar with skeleton badges
+ * - File list sidebar with skeleton entries
+ * - Main diff area with side-by-side skeleton code lines
+ */
+export function DiffViewerSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      {/* Header with summary skeleton */}
+      <div className="flex flex-shrink-0 items-center justify-between border-b p-4">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-6 w-28" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-12" />
+            <Skeleton className="h-5 w-12" />
+            <Skeleton className="h-5 w-12" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {/* File list sidebar skeleton */}
+        <div className="min-h-0 w-64 flex-shrink-0 overflow-y-auto border-r bg-muted/20">
+          <div className="space-y-1 p-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2 rounded px-2 py-1.5">
+                <Skeleton className="h-3 w-3 flex-shrink-0" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-5 w-16 flex-shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Diff content area skeleton */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {/* File header skeleton */}
+          <div className="flex-shrink-0 border-b bg-muted/30 px-4 py-2">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+          </div>
+
+          {/* Side-by-side panels skeleton */}
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            {/* Left panel */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col border-r">
+              <div className="flex-shrink-0 border-b bg-muted/50 px-4 py-2">
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <div className="min-h-0 min-w-0 flex-1 p-0">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="flex border-b border-border/50 font-mono text-sm">
+                    <span className="w-12 flex-shrink-0 border-r border-border/50 px-2 py-0.5">
+                      <Skeleton className="h-3.5 w-6" />
+                    </span>
+                    <span className="flex-1 px-2 py-0.5">
+                      <Skeleton
+                        className="h-3.5"
+                        style={{ width: `${LINE_WIDTHS[i % LINE_WIDTHS.length]}%` }}
+                      />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right panel */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="flex-shrink-0 border-b bg-muted/50 px-4 py-2">
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <div className="min-h-0 min-w-0 flex-1 p-0">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="flex border-b border-border/50 font-mono text-sm">
+                    <span className="w-12 flex-shrink-0 border-r border-border/50 px-2 py-0.5">
+                      <Skeleton className="h-3.5 w-6" />
+                    </span>
+                    <span className="flex-1 px-2 py-0.5">
+                      <Skeleton
+                        className="h-3.5"
+                        style={{ width: `${LINE_WIDTHS[(i + 5) % LINE_WIDTHS.length]}%` }}
+                      />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function parseDiff(unifiedDiff: string): ParsedDiffLine[] {
+  const lines = unifiedDiff.split('\n');
+  const parsed: ParsedDiffLine[] = [];
+  let leftLineNum = 0;
+  let rightLineNum = 0;
+
+  for (const line of lines) {
+    // Skip file headers
+    if (line.startsWith('---') || line.startsWith('+++')) {
+      continue;
+    }
+
+    // Parse hunk header: @@ -1,5 +1,6 @@
+    if (line.startsWith('@@')) {
+      const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
+      if (match && match[1] && match[2]) {
+        leftLineNum = parseInt(match[1], 10);
+        rightLineNum = parseInt(match[2], 10);
+      }
+      parsed.push({
+        type: 'header',
+        content: line,
+      });
+      continue;
+    }
+
+    // Parse diff lines
+    if (line.startsWith('+')) {
+      parsed.push({
+        rightLineNumber: rightLineNum++,
+        type: 'addition',
+        content: line.substring(1),
+      });
+    } else if (line.startsWith('-')) {
+      parsed.push({
+        leftLineNumber: leftLineNum++,
+        type: 'deletion',
+        content: line.substring(1),
+      });
+    } else {
+      // Context line (no prefix or space prefix)
+      const content = line.startsWith(' ') ? line.substring(1) : line;
+      parsed.push({
+        leftLineNumber: leftLineNum++,
+        rightLineNumber: rightLineNum++,
+        type: 'context',
+        content,
+      });
+    }
+  }
+
+  return parsed;
+}
+
+/**
+ * Compute sidebar stats (additions + deletions count) from a raw unified diff string
+ * without allocating full ParsedDiffLine objects. O(n) line scan with minimal allocations.
+ */
+function computeDiffStats(unifiedDiff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  const lines = unifiedDiff.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('---') || line.startsWith('+++') || line.startsWith('@@')) continue;
+    if (line.startsWith('+')) additions++;
+    else if (line.startsWith('-')) deletions++;
+  }
+  return { additions, deletions };
+}
+
+/**
+ * Map a numeric tier level to a human-readable tier name.
+ *
+ * The mapping mirrors the enterprise edition tiers defined in the backend.
+ * Unknown tier levels fall back to a generic "Tier N" label.
+ */
+function tierName(tier: number): string {
+  const names: Record<number, string> = {
+    0: 'Developer',
+    1: 'Team',
+    2: 'Enterprise',
+  };
+  return names[tier] ?? `Tier ${tier}`;
+}
+
+/**
+ * TierBadge — renders an enterprise tier pill for use in diff panel headers.
+ *
+ * Displays the numeric tier alongside its human-readable name derived from
+ * the ownerType, e.g. "Tier 1 · Team" or "Tier 2 · Enterprise".
+ */
+function TierBadge({ tier, ownerType }: { tier: number; ownerType: string }) {
+  // Resolve name: prefer ownerType label if it already looks like a tier name,
+  // otherwise fall back to the tier number mapping.
+  const resolvedName = ownerType
+    ? ownerType.charAt(0).toUpperCase() + ownerType.slice(1)
+    : tierName(tier);
+
+  const variantMap: Record<number, 'default' | 'secondary' | 'outline'> = {
+    0: 'outline',
+    1: 'secondary',
+    2: 'default',
+  };
+  const variant = variantMap[tier] ?? 'secondary';
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Badge variant={variant} className="text-xs font-medium tabular-nums">
+        Tier {tier}
+      </Badge>
+      <span className="text-xs text-muted-foreground">{resolvedName}</span>
+    </span>
+  );
+}
+
+function FileStatusBadge({ status }: { status: FileDiff['status'] }) {
+  const variants: Record<
+    FileDiff['status'],
+    { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }
+  > = {
+    added: { variant: 'default', label: 'Added' },
+    modified: { variant: 'secondary', label: 'Modified' },
+    deleted: { variant: 'destructive', label: 'Deleted' },
+    unchanged: { variant: 'outline', label: 'Unchanged' },
+  };
+
+  const { variant, label } = variants[status];
+
+  return (
+    <Badge variant={variant} className="text-xs">
+      {label}
+    </Badge>
+  );
+}
+
+/**
+ * DiffViewer - Side-by-side diff viewer with file browser
+ *
+ * Displays unified diffs in a professional side-by-side format. Features include:
+ * - File list sidebar with expandable items showing change statistics
+ * - Side-by-side diff panels with independent scrollbars
+ * - Color-coded additions (green), deletions (red), and context lines
+ * - File status badges (added, modified, deleted, unchanged)
+ * - Change summary (total files added, modified, deleted)
+ * - Optional sync conflict resolution actions (keep local/remote/merge)
+ *
+ * @example
+ * Basic diff viewer:
+ * ```tsx
+ * <DiffViewer
+ *   files={diffData.files}
+ *   leftLabel="Collection"
+ *   rightLabel="Project"
+ *   onClose={() => closeDiff()}
+ * />
+ * ```
+ *
+ * @example
+ * With sync resolution actions:
+ * ```tsx
+ * <DiffViewer
+ *   files={diffData.files}
+ *   leftLabel="Collection"
+ *   rightLabel="Project"
+ *   showResolutionActions={true}
+ *   onResolve={(resolution) => handleResolve(resolution)}
+ *   localLabel="Project"
+ *   remoteLabel="Collection"
+ *   isResolving={isResolving}
+ *   previewMode={true}
+ * />
+ * ```
+ *
+ * @param props - DiffViewerProps configuration
+ * @returns Full-height diff viewer component
+ */
+export function DiffViewer({
+  files,
+  leftLabel = 'Before',
+  rightLabel = 'After',
+  onClose,
+  showResolutionActions = false,
+  onResolve,
+  localLabel,
+  remoteLabel,
+  previewMode = false,
+  isResolving = false,
+  isLoading = false,
+  tierContext,
+}: DiffViewerProps) {
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [expandedFiles, setExpandedFiles] = useState<Set<number>>(new Set([0]));
+
+  /**
+   * When the diff has more than LARGE_DIFF_FILE_THRESHOLD files, the sidebar
+   * initially renders only the first N. This flag lifts that cap.
+   */
+  const [showAllFiles, setShowAllFiles] = useState(false);
+
+  /**
+   * Set of file indices for which the user has explicitly requested to load
+   * the full diff content. Files whose unified_diff is "large" (exceeds line/
+   * byte thresholds) start collapsed; clicking "Load diff" adds them here.
+   */
+  const [loadedLargeFiles, setLoadedLargeFiles] = useState<Set<number>>(new Set());
+
+  const selectedFile = files[selectedFileIndex];
+
+  /**
+   * On-demand parse cache keyed by file_path.
+   *
+   * Previously, a `parsedDiffs` useMemo iterated ALL files and called parseDiff() on every
+   * unified_diff string at mount time, regardless of whether the user ever expanded those files.
+   * For large diffs (50+ files) this blocked the main thread unnecessarily on mount.
+   *
+   * Now we parse lazily: only when a file is first selected or first expanded in the sidebar.
+   * The cache persists across renders via useRef so each file is parsed at most once per
+   * component lifetime. If the `files` prop identity changes (new data arrives) we clear
+   * the cache so stale results are never served.
+   */
+  const parseCacheRef = useRef<Map<string, ParsedDiffLine[]>>(new Map());
+  const filesCacheKeyRef = useRef<string>('');
+
+  // Invalidate the parse cache when the files array changes (new diff data received)
+  const filesKey = files.map((f) => f.file_path).join(',');
+  if (filesKey !== filesCacheKeyRef.current) {
+    filesCacheKeyRef.current = filesKey;
+    parseCacheRef.current = new Map();
+    // Reset large-diff UX state so new data starts fresh
+    setShowAllFiles(false);
+    setLoadedLargeFiles(new Set());
+  }
+
+  /**
+   * Get parsed lines for a given file path, parsing on first access and caching the result.
+   * Only call this for files the user has actually expanded/selected.
+   */
+  const getParsedLines = (filePath: string, unifiedDiff: string): ParsedDiffLine[] => {
+    const cache = parseCacheRef.current;
+    if (!cache.has(filePath)) {
+      cache.set(filePath, parseDiff(unifiedDiff));
+    }
+    return cache.get(filePath)!;
+  };
+
+  /**
+   * Sidebar stat cache: stores pre-computed {additions, deletions} per file_path.
+   * Uses the lightweight computeDiffStats scanner (no object allocation per line)
+   * instead of the full parseDiff. Keyed separately from parseCacheRef because
+   * sidebar stats are shown without needing full ParsedDiffLine arrays.
+   */
+  const statsCacheRef = useRef<Map<string, { additions: number; deletions: number }>>(new Map());
+  const statsCacheKeyRef = useRef<string>('');
+  if (filesKey !== statsCacheKeyRef.current) {
+    statsCacheKeyRef.current = filesKey;
+    statsCacheRef.current = new Map();
+  }
+
+  const getFileStats = (filePath: string, unifiedDiff: string) => {
+    const cache = statsCacheRef.current;
+    if (!cache.has(filePath)) {
+      cache.set(filePath, computeDiffStats(unifiedDiff));
+    }
+    return cache.get(filePath)!;
+  };
+
+  // Parsed diff for the currently selected file -- computed on demand, cached in parseCacheRef
+  const parsedDiff = useMemo(() => {
+    return selectedFile?.unified_diff
+      ? getParsedLines(selectedFile.file_path, selectedFile.unified_diff)
+      : [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFile?.file_path, selectedFile?.unified_diff]);
+
+  // Performance instrumentation: start timing diff summary and render on mount
+  useEffect(() => {
+    markStart('diff-viewer.summary-ready');
+  }, []);
+
+  // Refs for synchronized scrolling between left and right panels
+  const leftScrollRef = useRef<HTMLDivElement>(null);
+  const rightScrollRef = useRef<HTMLDivElement>(null);
+
+  // Synchronized scrolling between left and right diff panels
+  useEffect(() => {
+    const leftScroll = leftScrollRef.current;
+    const rightScroll = rightScrollRef.current;
+    if (!leftScroll || !rightScroll) return;
+
+    let isSyncing = false;
+
+    const syncScroll = (source: HTMLDivElement, target: HTMLDivElement) => {
+      if (isSyncing) return;
+      isSyncing = true;
+      target.scrollTop = source.scrollTop;
+      requestAnimationFrame(() => {
+        isSyncing = false;
+      });
+    };
+
+    const onLeftScroll = () => syncScroll(leftScroll, rightScroll);
+    const onRightScroll = () => syncScroll(rightScroll, leftScroll);
+
+    leftScroll.addEventListener('scroll', onLeftScroll);
+    rightScroll.addEventListener('scroll', onRightScroll);
+
+    return () => {
+      leftScroll.removeEventListener('scroll', onLeftScroll);
+      rightScroll.removeEventListener('scroll', onRightScroll);
+    };
+  }, [selectedFile]);
+
+  // Performance instrumentation: mark when diff summary data arrives (files prop populated)
+  const diffSummaryMarked = useRef(false);
+  useEffect(() => {
+    if (files.length > 0 && !diffSummaryMarked.current) {
+      diffSummaryMarked.current = true;
+      markEnd('diff-viewer.summary-ready');
+    }
+  }, [files]);
+
+  // Performance instrumentation: mark when the full diff content finishes rendering
+  // (fires after paint for the current selected file's unified diff)
+  const prevFilesKey = useRef('');
+  useEffect(() => {
+    if (files.length > 0 && filesKey !== prevFilesKey.current) {
+      prevFilesKey.current = filesKey;
+      markStart('diff-viewer.render');
+      // Defer end mark until after browser has painted the diff content
+      const id = requestAnimationFrame(() => {
+        markEnd('diff-viewer.render');
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [files, filesKey]);
+
+  // Memoize summary calculation (reads only file.status, no diff parsing needed)
+  const summary = useMemo(() => {
+    return files.reduce(
+      (acc, file) => {
+        if (file.status === 'added') acc.added++;
+        else if (file.status === 'modified') acc.modified++;
+        else if (file.status === 'deleted') acc.deleted++;
+        else acc.unchanged++;
+        return acc;
+      },
+      { added: 0, modified: 0, deleted: 0, unchanged: 0 }
+    );
+  }, [files]);
+
+  const toggleFileExpansion = (index: number) => {
+    const newExpanded = new Set(expandedFiles);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedFiles(newExpanded);
+  };
+
+  if (isLoading) {
+    return <DiffViewerSkeleton />;
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        <p>No changes to display</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden" data-testid="diff-viewer">
+      {/* Header with summary */}
+      <div className="flex flex-shrink-0 items-center justify-between border-b p-4">
+        <div className="flex items-center gap-4">
+          <h3 className="text-lg font-semibold">Diff Viewer</h3>
+          <div className="flex items-center gap-2 text-sm">
+            {summary.added > 0 && (
+              <span className="text-green-600 dark:text-green-400">+{summary.added}</span>
+            )}
+            {summary.modified > 0 && (
+              <span className="text-blue-600 dark:text-blue-400">~{summary.modified}</span>
+            )}
+            {summary.deleted > 0 && (
+              <span className="text-red-600 dark:text-red-400">-{summary.deleted}</span>
+            )}
+          </div>
+        </div>
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {/* File list sidebar */}
+        <div className="min-h-0 w-64 flex-shrink-0 overflow-y-auto border-r bg-muted/20">
+          <div className="space-y-1 p-2">
+            {/* Large-file-count guard: only render up to LARGE_DIFF_FILE_THRESHOLD rows
+                unless the user has opted in to "show all". This keeps the sidebar
+                responsive when a diff contains hundreds of files. */}
+            {(showAllFiles ? files : files.slice(0, LARGE_DIFF_FILE_THRESHOLD)).map((file, index) => {
+              const isExpanded = expandedFiles.has(index);
+              const isSelected = index === selectedFileIndex;
+
+              return (
+                <div key={index}>
+                  <button
+                    onClick={() => {
+                      setSelectedFileIndex(index);
+                      if (!isExpanded) {
+                        toggleFileExpansion(index);
+                      }
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent',
+                      isSelected && 'bg-accent'
+                    )}
+                  >
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFileExpansion(index);
+                      }}
+                      className="flex-shrink-0"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                    </span>
+                    <span className="flex-1 truncate font-mono text-xs">{file.file_path}</span>
+                    <FileStatusBadge status={file.status} />
+                  </button>
+
+                  {/* Sidebar stats: computed on demand only when the file row is expanded.
+                      Uses lightweight computeDiffStats (no ParsedDiffLine allocation)
+                      rather than the full parseDiff result. */}
+                  {isExpanded && file.status === 'modified' && file.unified_diff && (() => {
+                    const stats = getFileStats(file.file_path, file.unified_diff);
+                    return (
+                      <div className="ml-6 mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        <div className="font-mono">
+                          {stats.additions} additions, {stats.deletions} deletions
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })}
+
+            {/* "Show all files" banner — only visible when file count exceeds the threshold
+                and the user has not yet opted in. */}
+            {!showAllFiles && files.length > LARGE_DIFF_FILE_THRESHOLD && (
+              <div className="mt-2 rounded border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                <p className="mb-1.5">
+                  Showing {LARGE_DIFF_FILE_THRESHOLD} of {files.length} files
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-full text-xs"
+                  onClick={() => setShowAllFiles(true)}
+                >
+                  Load all {files.length} files
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Diff viewer */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {/* File header */}
+          <div className="flex-shrink-0 border-b bg-muted/30 px-4 py-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-sm font-semibold">{selectedFile?.file_path}</span>
+              <FileStatusBadge status={selectedFile?.status || 'unchanged'} />
+            </div>
+          </div>
+
+          {/* Side-by-side diff with synchronized scrolling and line alignment */}
+          {selectedFile?.status === 'modified' && selectedFile.unified_diff ? (
+            // Large-file guard: if the diff exceeds the line/byte threshold AND the user
+            // has not explicitly loaded it, show a collapsed placeholder instead of
+            // parsing and rendering potentially thousands of DOM nodes.
+            isLargeFileDiff(selectedFile.unified_diff) &&
+            !loadedLargeFiles.has(selectedFileIndex) ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+                <p className="max-w-xs">
+                  This file diff is large ({Math.round(selectedFile.unified_diff.length / 1024)} KB).
+                  Loading it may slow down the browser.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setLoadedLargeFiles((prev) => new Set([...prev, selectedFileIndex]))
+                  }
+                >
+                  Load diff
+                </Button>
+              </div>
+            ) : (
+            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+              {/* Left panel */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col border-r">
+                <div className="flex flex-shrink-0 items-center gap-2 border-b bg-muted/50 px-4 py-2 text-sm font-medium">
+                  {tierContext ? (
+                    <TierBadge tier={tierContext.leftTier} ownerType={tierContext.leftOwnerType} />
+                  ) : (
+                    <span data-testid="scope-label-left">{leftLabel}</span>
+                  )}
+                </div>
+                <div
+                  ref={leftScrollRef}
+                  className="min-h-0 min-w-0 flex-1 overflow-auto"
+                  tabIndex={0}
+                  aria-label="Left diff panel — scroll to see more"
+                >
+                  {parsedDiff.map((line, idx) => {
+                    if (line.type === 'addition') {
+                      return <SpacerLine key={idx} />;
+                    }
+                    if (line.type === 'header') {
+                      return (
+                        <DiffLine key={idx} content={line.content} type="header" side="left" />
+                      );
+                    }
+                    return (
+                      <DiffLine
+                        key={idx}
+                        content={line.content}
+                        type={line.type}
+                        lineNumber={line.leftLineNumber}
+                        side="left"
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right panel */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div className="flex flex-shrink-0 items-center gap-2 border-b bg-muted/50 px-4 py-2 text-sm font-medium">
+                  {tierContext ? (
+                    <TierBadge tier={tierContext.rightTier} ownerType={tierContext.rightOwnerType} />
+                  ) : (
+                    <span data-testid="scope-label-right">{rightLabel}</span>
+                  )}
+                </div>
+                <div
+                  ref={rightScrollRef}
+                  className="min-h-0 min-w-0 flex-1 overflow-auto"
+                  tabIndex={0}
+                  aria-label="Right diff panel — scroll to see more"
+                >
+                  {parsedDiff.map((line, idx) => {
+                    if (line.type === 'deletion') {
+                      return <SpacerLine key={idx} />;
+                    }
+                    if (line.type === 'header') {
+                      return (
+                        <DiffLine key={idx} content={line.content} type="header" side="right" />
+                      );
+                    }
+                    return (
+                      <DiffLine
+                        key={idx}
+                        content={line.content}
+                        type={line.type}
+                        lineNumber={line.rightLineNumber}
+                        side="right"
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            )
+          ) : selectedFile?.status === 'added' ? (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              <div className="flex-shrink-0 bg-green-500/10 px-4 py-2 text-sm text-green-700 dark:text-green-400">
+                This file was added in {rightLabel}
+              </div>
+              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 text-sm text-muted-foreground">
+                Content preview not available for added files.
+              </div>
+            </div>
+          ) : selectedFile?.status === 'deleted' ? (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              <div className="flex-shrink-0 bg-red-500/10 px-4 py-2 text-sm text-red-700 dark:text-red-400">
+                This file was deleted from {leftLabel}
+              </div>
+              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 text-sm text-muted-foreground">
+                Content preview not available for deleted files.
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              <p>No changes in this file</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Resolution Action Bar (for sync conflict resolution) */}
+      {showResolutionActions && (
+        <div className="flex flex-shrink-0 items-center justify-end gap-2 border-t bg-muted/20 p-4">
+          {previewMode && (
+            <span className="mr-auto text-sm text-muted-foreground">
+              Preview mode - select which version to keep
+            </span>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => onResolve?.('keep_local')}
+            disabled={isResolving}
+            className="hover:bg-accent"
+            title={`Keep the ${localLabel || 'local (project)'} version`}
+          >
+            Keep {localLabel || 'Local (Project)'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => onResolve?.('keep_remote')}
+            disabled={isResolving}
+            className="hover:bg-accent"
+            title={`Keep the ${remoteLabel || 'remote (collection)'} version`}
+          >
+            Keep {remoteLabel || 'Remote (Collection)'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => onResolve?.('merge')}
+            disabled={isResolving}
+            className="hover:bg-secondary/80"
+            title="Manually merge changes (coming soon)"
+          >
+            Merge
+          </Button>
+          {isResolving && <Loader2 className="ml-2 h-4 w-4 animate-spin text-muted-foreground" />}
+        </div>
+      )}
+    </div>
+  );
+}
