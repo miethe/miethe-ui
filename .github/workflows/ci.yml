@@ -19,7 +19,7 @@ jobs:
       # pnpm-lock.yaml was lockfileVersion 9.0 is what broke every run: pnpm 8 cannot read a v9
       # lockfile, logs "Ignoring not compatible lockfile", then treats it as ABSENT — so
       # `--frozen-lockfile` failed with ERR_PNPM_NO_LOCKFILE on every branch, ~15s in.
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
