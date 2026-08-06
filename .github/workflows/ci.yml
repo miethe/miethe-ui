@@ -14,9 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version:` here on purpose — action-setup reads `packageManager` from package.json,
+      # so the pnpm version is declared in exactly one place. Pinning `version: 8` here while
+      # pnpm-lock.yaml was lockfileVersion 9.0 is what broke every run: pnpm 8 cannot read a v9
+      # lockfile, logs "Ignoring not compatible lockfile", then treats it as ABSENT — so
+      # `--frozen-lockfile` failed with ERR_PNPM_NO_LOCKFILE on every branch, ~15s in.
       - uses: pnpm/action-setup@v3
-        with:
-          version: 8
 
       - uses: actions/setup-node@v4
         with:
@@ -36,5 +39,7 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # `pnpm test --ci` does NOT work: pnpm parses `--ci` as its own flag and exits with
+      # "Unknown option: 'ci'". The `--` is required to forward the flag to jest.
       - name: Test
-        run: pnpm test --ci
+        run: pnpm test -- --ci

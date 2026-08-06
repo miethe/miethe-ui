@@ -17,19 +17,30 @@ import { TextEncoder, TextDecoder } from 'util';
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
-// Mock window.matchMedia
+// Stub window.matchMedia (jsdom does not implement it).
+//
+// Deliberately a PLAIN function, not `jest.fn().mockImplementation(...)`. This config sets
+// `resetMocks: true`, which resets every mock before each test and strips the implementation
+// off a jest.fn — so the mocked form returned `undefined`, and any caller doing
+// `window.matchMedia(q).matches` (e.g. theme.ts `prefersDark()`) threw
+// "Cannot read properties of undefined (reading 'matches')". A plain function is immune to
+// mock resetting, which is the property we actually want from a jsdom polyfill.
+//
+// The listener members stay plain no-ops for the same reason. If a test ever needs to assert
+// on matchMedia calls, it should spy locally (`jest.spyOn(window, 'matchMedia')`) rather than
+// making the global polyfill resettable again.
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation((query) => ({
+  value: (query) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
 });
 
 // Mock IntersectionObserver

@@ -56,11 +56,37 @@ const config = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
 
   // Transform ESM modules from node_modules — match what the web app uses
-  // for react-markdown + unified ecosystem. The pnpm virtual-store path
-  // (.pnpm/) is intentionally NOT added here; suites that hit that path
-  // are the pre-existing barrel-ESM failures documented above.
+  // for react-markdown + unified ecosystem.
+  //
+  // The leading `(?!\.pnpm)` is what makes this work under pnpm, and its absence
+  // is what caused the "pre-existing barrel ESM load failures" this config used to
+  // document as unfixable. pnpm resolves a dep to a virtual-store path:
+  //   node_modules/.pnpm/react-markdown@9.1.0_.../node_modules/react-markdown/index.js
+  // Jest tests the WHOLE path, so the first `/node_modules/` is followed by `.pnpm` —
+  // which is not in the allow-list, so the lookahead succeeded, the path matched
+  // "ignore", and the package was never transformed. Excluding `.pnpm` at that first
+  // position makes the match fall through to the second `/node_modules/`, where the
+  // real package name is checked as intended.
+  // Only CSS modules are left un-transformed. Everything Jest actually loads from
+  // node_modules gets run through babel, which is what the react-markdown/unified/rehype/
+  // hast/micromark chain requires — all of it is ESM-only.
+  //
+  // Deliberately NOT an allow-list. The previous config enumerated ~25 package names, and
+  // the enumeration is what failed: pnpm's virtual-store path meant the list was never
+  // consulted at all (see below), and even once that was fixed the chain revealed a new
+  // unlisted transitive dep on every run (devlop → estree-util-is-identifier-name →
+  // html-url-attributes → …). An allow-list of transitive deps is guaranteed to rot on the
+  // next dependency bump — and Dependabot bumps are precisely the signal this pipeline
+  // exists to produce, so a config that breaks when a dep moves is worse than useless here.
+  //
+  // For the record, since it cost real time to find: pnpm resolves a dep to
+  //   node_modules/.pnpm/react-markdown@9.1.0_.../node_modules/react-markdown/index.js
+  // Jest matches against the WHOLE path, so a `/node_modules/(?!(allowed|names))` pattern
+  // matched at the FIRST `/node_modules/` — followed by `.pnpm`, which no allow-list
+  // contains — and ignored the file before ever reaching the real package name. That is the
+  // mechanism behind the "pre-existing barrel ESM load failures" this file used to document
+  // as unfixable; they were a regex bug, not a limitation.
   transformIgnorePatterns: [
-    '/node_modules/(?!(react-markdown|vfile|vfile-message|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-sanitize|rehype-parse|rehype-stringify|rehype-.*|hast-util-.*|hast-.*|parse5.*|unist-util-visit|unist-util-visit-parents|zwitch|fault)/)',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
 
