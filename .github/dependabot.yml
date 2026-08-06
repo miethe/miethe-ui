@@ -4,6 +4,17 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # tailwind-merge v3 supports ONLY Tailwind CSS v4.0-v4.3 and drops v3
+      # (https://github.com/dcastil/tailwind-merge/blob/v3.6.0/README.md).
+      # peerDependencies.tailwindcss here is ">=3.0.0", so a v3 bump silently
+      # breaks class-conflict resolution for every consumer still on Tailwind v3
+      # — and nothing in this repo catches it (no Tailwind installed, no config,
+      # so build/type-check/lint/tests all stay green). Merged once as PR #5 and
+      # reverted. Lift this ignore only in the same change that narrows the
+      # tailwindcss peer range to >=4.0.0, as a MAJOR release of @miethe/ui.
+      - dependency-name: "tailwind-merge"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
