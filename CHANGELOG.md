@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`tailwind-merge` held at v2 to keep the declared Tailwind CSS v3 support honest.**
+  `tailwind-merge` was briefly bumped to `^3.6.0`, but v3 supports only Tailwind CSS
+  v4.0–v4.3 and [drops v3](https://github.com/dcastil/tailwind-merge/blob/v3.6.0/README.md)
+  — while `peerDependencies.tailwindcss` here is `>=3.0.0`. A consumer on Tailwind v3
+  satisfied the peer range, installed without warning, and got a `cn()` that resolved
+  class conflicts incorrectly at runtime. Reverted to `^2.6.0`; dependabot is now
+  configured to ignore `tailwind-merge` majors.
+
+  No API change — `cn()` and every exported component behave as they did in 0.6.1.
+
+### Notes for consumers
+
+- `@miethe/ui` still targets **Tailwind CSS v3** (`peerDependencies.tailwindcss: ">=3.0.0"`).
+  Moving to `tailwind-merge` v3 requires narrowing that range to `>=4.0.0`, which drops
+  Tailwind v3 consumers and will therefore ship as a **major** version of this package,
+  not a minor.
+
 ## [0.6.0] - 2026-06-21
 
 ### Added
