@@ -48,11 +48,11 @@ jest.mock('lowlight', () => {
 // without the async dynamic import hitting the (mocked) lowlight.
 // ContentPane imports highlightCodeToHast from lowlightLoader (not rehypeCodeHighlight).
 // We expose a `__setNextResult` helper so individual tests can shape the response.
-let nextHighlightResult: import('hast').Root | null = null;
+let mockNextHighlightResult: import('hast').Root | null = null;
 
 jest.mock('../components/content-viewer/plugins/lowlightLoader', () => ({
   highlightCodeToHast: jest.fn(async (_code: string, _lang: string | null) => {
-    return nextHighlightResult;
+    return mockNextHighlightResult;
   }),
   getLowlightInstance: jest.fn(() => null),
   warmHighlightCache: jest.fn(async () => {}),
@@ -121,7 +121,7 @@ function makeHastRoot(): HastRoot {
 }
 
 beforeEach(() => {
-  nextHighlightResult = null;
+  mockNextHighlightResult = null;
   highlightCodeToHast.mockClear();
 });
 
@@ -131,8 +131,8 @@ beforeEach(() => {
 
 describe('ContentPane — codeHighlight=true on .ts file', () => {
   it('calls highlightCodeToHast with the correct language', async () => {
-    nextHighlightResult = makeHastRoot();
-    highlightCodeToHast.mockResolvedValue(nextHighlightResult);
+    mockNextHighlightResult = makeHastRoot();
+    highlightCodeToHast.mockResolvedValue(mockNextHighlightResult);
 
     render(
       <ContentPane
@@ -148,8 +148,8 @@ describe('ContentPane — codeHighlight=true on .ts file', () => {
   });
 
   it('renders highlighted markup with hljs class when lowlight succeeds', async () => {
-    nextHighlightResult = makeHastRoot();
-    highlightCodeToHast.mockResolvedValue(nextHighlightResult);
+    mockNextHighlightResult = makeHastRoot();
+    highlightCodeToHast.mockResolvedValue(mockNextHighlightResult);
 
     const { container } = render(
       <ContentPane
@@ -169,8 +169,8 @@ describe('ContentPane — codeHighlight=true on .ts file', () => {
   });
 
   it('renders hljs-keyword span with correct text', async () => {
-    nextHighlightResult = makeHastRoot();
-    highlightCodeToHast.mockResolvedValue(nextHighlightResult);
+    mockNextHighlightResult = makeHastRoot();
+    highlightCodeToHast.mockResolvedValue(mockNextHighlightResult);
 
     render(
       <ContentPane
@@ -450,8 +450,8 @@ describe('ContentPane — codeHighlight=false default', () => {
 
 describe('ContentPane — sanitize and codeHighlight coexist', () => {
   it('renders with both sanitize=true and codeHighlight=true without error', async () => {
-    nextHighlightResult = makeHastRoot();
-    highlightCodeToHast.mockResolvedValue(nextHighlightResult);
+    mockNextHighlightResult = makeHastRoot();
+    highlightCodeToHast.mockResolvedValue(mockNextHighlightResult);
 
     expect(() =>
       render(
