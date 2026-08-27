@@ -83,6 +83,22 @@
       "types": "./dist/discovery/index.d.ts",
       "import": "./dist/discovery/index.js",
       "default": "./dist/discovery/index.js"
+    },
+    "./read-surfaces": {
+      "types": "./dist/read-surfaces/index.d.ts",
+      "import": "./dist/read-surfaces/index.js",
+      "default": "./dist/read-surfaces/index.js"
+    },
+    "./telemetry": {
+      "types": "./dist/telemetry/index.d.ts",
+      "import": "./dist/telemetry/index.js",
+      "default": "./dist/telemetry/index.js"
+    },
+    "./styles/tokens.css": "./dist/styles/tokens.css",
+    "./styles/read-surfaces.css": "./dist/styles/read-surfaces.css",
+    "./tailwind-preset": {
+      "require": "./dist/tailwind-preset.cjs",
+      "default": "./dist/tailwind-preset.cjs"
     }
   },
   "files": [
@@ -92,7 +108,7 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-package-assets.mjs",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "typecheck": "tsc --noEmit --project tsconfig.test.json",
