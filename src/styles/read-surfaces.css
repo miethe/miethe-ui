@@ -1,0 +1,8 @@
+/* Optional no-Tailwind recipes for static artifacts and package consumers. */
+.mui-read-surface { color: hsl(var(--foreground)); background: hsl(var(--background)); }
+.mui-operator-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mui-operator-table th { height: 30px; color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 600; text-align: left; }
+.mui-operator-table td { min-height: 42px; border-top: 1px solid hsl(var(--border)); padding: 8px 12px; vertical-align: middle; }
+.mui-state-panel { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; color: hsl(var(--muted-foreground)); }
+.mui-context-rail { border-left: 1px solid hsl(var(--border)); overflow: auto; }
+@media (max-width: 768px) { .mui-context-rail { border-left: 0; border-top: 1px solid hsl(var(--border)); } }

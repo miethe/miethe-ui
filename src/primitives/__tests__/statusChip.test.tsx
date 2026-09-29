@@ -24,36 +24,36 @@ describe('StatusChip', () => {
   it('applies neutral classes by default', () => {
     const { container } = render(<StatusChip label="neutral-test" />);
     const span = container.querySelector('span');
-    expect(span?.className).toContain('bg-slate-700/60');
-    expect(span?.className).toContain('text-slate-300');
+    expect(span?.className).toContain('bg-muted');
+    expect(span?.className).toContain('text-muted-foreground');
   });
 
   it('applies ok classes for variant=ok', () => {
     const { container } = render(<StatusChip label="done" variant="ok" />);
     const span = container.querySelector('span');
-    expect(span?.className).toContain('bg-emerald-600/20');
-    expect(span?.className).toContain('text-emerald-400');
+    expect(span?.className).toContain('bg-[hsl(var(--success)/0.14)]');
+    expect(span?.className).toContain('text-[hsl(var(--success-foreground))]');
   });
 
   it('applies warn classes for variant=warn', () => {
     const { container } = render(<StatusChip label="waiting" variant="warn" />);
     const span = container.querySelector('span');
-    expect(span?.className).toContain('bg-amber-600/20');
-    expect(span?.className).toContain('text-amber-400');
+    expect(span?.className).toContain('bg-[hsl(var(--warning)/0.14)]');
+    expect(span?.className).toContain('text-[hsl(var(--warning-foreground))]');
   });
 
   it('applies error classes for variant=error', () => {
     const { container } = render(<StatusChip label="blocked" variant="error" />);
     const span = container.querySelector('span');
-    expect(span?.className).toContain('bg-rose-600/20');
-    expect(span?.className).toContain('text-rose-400');
+    expect(span?.className).toContain('bg-destructive/14');
+    expect(span?.className).toContain('text-destructive');
   });
 
   it('applies info classes for variant=info', () => {
     const { container } = render(<StatusChip label="info-label" variant="info" />);
     const span = container.querySelector('span');
-    expect(span?.className).toContain('bg-blue-600/20');
-    expect(span?.className).toContain('text-blue-400');
+    expect(span?.className).toContain('bg-[hsl(var(--info)/0.14)]');
+    expect(span?.className).toContain('text-[hsl(var(--info-foreground))]');
   });
 
   it('renders tooltip as title attribute when provided', () => {

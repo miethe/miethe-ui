@@ -46,10 +46,10 @@ describe('EffectiveStatusChips', () => {
       />,
     );
     expect(screen.getByText('eff: blocked')).toBeInTheDocument();
-    // warn variant uses amber classes — find eff chip span by text then check parent classes
+    // The mismatch uses the shared warning semantic pair.
     const effSpan = screen.getByText('eff: blocked');
-    expect(effSpan.className).toContain('bg-amber-600/20');
-    expect(effSpan.className).toContain('text-amber-400');
+    expect(effSpan.className).toContain('bg-[hsl(var(--warning)/0.14)]');
+    expect(effSpan.className).toContain('text-[hsl(var(--warning-foreground))]');
     // Satisfy the linter — container is used for structural inspection if needed
     expect(container).toBeTruthy();
   });

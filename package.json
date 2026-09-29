@@ -83,6 +83,22 @@
       "types": "./dist/discovery/index.d.ts",
       "import": "./dist/discovery/index.js",
       "default": "./dist/discovery/index.js"
+    },
+    "./read-surfaces": {
+      "types": "./dist/read-surfaces/index.d.ts",
+      "import": "./dist/read-surfaces/index.js",
+      "default": "./dist/read-surfaces/index.js"
+    },
+    "./telemetry": {
+      "types": "./dist/telemetry/index.d.ts",
+      "import": "./dist/telemetry/index.js",
+      "default": "./dist/telemetry/index.js"
+    },
+    "./styles/tokens.css": "./dist/styles/tokens.css",
+    "./styles/read-surfaces.css": "./dist/styles/read-surfaces.css",
+    "./tailwind-preset": {
+      "require": "./dist/tailwind-preset.cjs",
+      "default": "./dist/tailwind-preset.cjs"
     }
   },
   "files": [
@@ -92,7 +108,7 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-package-assets.mjs",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "typecheck": "tsc --noEmit --project tsconfig.test.json",
@@ -175,7 +191,7 @@
     "@babel/preset-env": "^7.26.0",
     "@babel/preset-react": "^7.26.0",
     "@babel/preset-typescript": "^7.26.0",
-    "babel-jest": "^29.7.0",
+    "babel-jest": "30.4.1",
     "eslint": "^9.14.0",
     "eslint-plugin-react": "^7.37.1",
     "eslint-plugin-react-hooks": "^5.0.0",
@@ -183,7 +199,7 @@
     "identity-obj-proxy": "^3.0.0",
     "jest": "^30.4.2",
     "jest-axe": "^10.0.0",
-    "jest-environment-jsdom": "^29.7.0",
+    "jest-environment-jsdom": "30.4.1",
     "typescript": "^5.0.0"
   },
   "engines": {

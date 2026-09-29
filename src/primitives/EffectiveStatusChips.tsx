@@ -59,11 +59,11 @@ export function EffectiveStatusChips({
       <div className="group relative">
         <StatusChip label={`raw: ${rawStatus}`} variant={statusVariant(rawStatus)} />
         {provenance && (
-          <div className="pointer-events-none absolute right-0 top-full z-10 mt-1.5 hidden w-64 rounded-lg border border-panel-border bg-slate-900 p-3 shadow-xl group-hover:block">
+          <div className="pointer-events-none absolute right-0 top-full z-10 mt-1.5 hidden w-64 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl group-hover:block">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">
               Provenance
             </p>
-            <p className="text-xs text-panel-foreground">Source: {provenance.source}</p>
+            <p className="text-xs text-popover-foreground">Source: {provenance.source}</p>
             {provenance.reason && (
               <p className="mt-0.5 text-xs text-muted-foreground">{provenance.reason}</p>
             )}
