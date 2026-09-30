@@ -9,11 +9,11 @@ export interface StatusChipProps {
 const BASE = 'inline-flex items-center rounded px-2 py-0.5 text-xs font-medium';
 
 const COLORS: Record<StatusChipVariant, string> = {
-  neutral: 'bg-slate-700/60 text-slate-300',
-  ok:      'bg-emerald-600/20 text-emerald-400',
-  warn:    'bg-amber-600/20 text-amber-400',
-  error:   'bg-rose-600/20 text-rose-400',
-  info:    'bg-blue-600/20 text-blue-400',
+  neutral: 'bg-muted text-muted-foreground',
+  ok:      'bg-[hsl(var(--success)/0.14)] text-[hsl(var(--success-foreground))]',
+  warn:    'bg-[hsl(var(--warning)/0.14)] text-[hsl(var(--warning-foreground))]',
+  error:   'bg-destructive/14 text-destructive',
+  info:    'bg-[hsl(var(--info)/0.14)] text-[hsl(var(--info-foreground))]',
 };
 
 /**

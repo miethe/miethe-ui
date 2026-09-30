@@ -25,29 +25,29 @@ describe('BatchReadinessPill', () => {
   it('uses ok (emerald) classes for ready state', () => {
     render(<BatchReadinessPill readinessState="ready" />);
     const chip = screen.getByText('ready');
-    expect(chip.className).toContain('bg-emerald-600/20');
-    expect(chip.className).toContain('text-emerald-400');
+    expect(chip.className).toContain('bg-[hsl(var(--success)/0.14)]');
+    expect(chip.className).toContain('text-[hsl(var(--success-foreground))]');
   });
 
   it('uses error (rose) classes for blocked state', () => {
     render(<BatchReadinessPill readinessState="blocked" />);
     const chip = screen.getByText('blocked');
-    expect(chip.className).toContain('bg-rose-600/20');
-    expect(chip.className).toContain('text-rose-400');
+    expect(chip.className).toContain('bg-destructive/14');
+    expect(chip.className).toContain('text-destructive');
   });
 
   it('uses warn (amber) classes for waiting state', () => {
     render(<BatchReadinessPill readinessState="waiting" />);
     const chip = screen.getByText('waiting');
-    expect(chip.className).toContain('bg-amber-600/20');
-    expect(chip.className).toContain('text-amber-400');
+    expect(chip.className).toContain('bg-[hsl(var(--warning)/0.14)]');
+    expect(chip.className).toContain('text-[hsl(var(--warning-foreground))]');
   });
 
   it('uses neutral (slate) classes for unknown state', () => {
     render(<BatchReadinessPill readinessState="unknown" />);
     const chip = screen.getByText('unknown');
-    expect(chip.className).toContain('bg-slate-700/60');
-    expect(chip.className).toContain('text-slate-300');
+    expect(chip.className).toContain('bg-muted');
+    expect(chip.className).toContain('text-muted-foreground');
   });
 
   it('renders blocking node IDs when provided', () => {

@@ -8,6 +8,8 @@ export * from './display';
 export * from './primitives';
 export * from './utils';
 export * from './bulk-actions';
+export * from './read-surfaces';
+export * from './telemetry';
 
 // ============================================================
 // Types (shared)
