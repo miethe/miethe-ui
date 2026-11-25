@@ -200,7 +200,7 @@
     "identity-obj-proxy": "^3.0.0",
     "jest": "^30.4.2",
     "jest-axe": "^11.0.0",
-    "jest-environment-jsdom": "30.4.1",
+    "jest-environment-jsdom": "30.5.2",
     "react-hook-form": "^7.89.0",
     "typescript": "^5.0.0"
   },
